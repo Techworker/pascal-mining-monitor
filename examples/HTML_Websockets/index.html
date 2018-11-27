@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
+    <title>Hello, world!</title>
+</head>
+<body style="background-color: #F6F8FA">
+
+<div class="container">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo01" aria-controls="navbarTogglerDemo01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
+            <a class="navbar-brand" href="#">
+                <img src="https://www.pascalcoin.org/images/logo.png"> Miner monitor
+            </a>
+
+            <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
+            </ul>
+            <span class="navbar-text">
+                <span id="socket_status">
+
+                </span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-2">
+            <div class="p-2 bg-white">
+                <strong><span id="hashrate_all"></span> H/s</strong>
+                <br />
+                <small>Combined Hashrate</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="p-2 bg-white">
+                <strong><span id="miners_all"></span></strong>
+                <br />
+                <small>Miners</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="p-2 bg-white">
+                <strong><span id="blocks_all"></span></strong>
+                <br />
+                <small>Blocks</small>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="p-2 bg-white">
+                <strong><span id="pasc_all"></span></strong>
+                <br />
+                <small>PASC earned</small>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="mt-4">Servers</h3>
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>IP:Port</th>
+                    <th>HashRate</th>
+                    <th>Status</th>
+                    <th>Error</th>
+                </tr>
+                </thead>
+                <tbody id="servers">
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="modal" tabindex="-1" role="dialog" id="myModal">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modal title</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Modal body text goes here.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Optional JavaScript -->
+<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+<script src="node_modules/reconnecting-websocket/dist/reconnecting-websocket-iife.js"></script>
+
+<script>
+    var servers = {};
+    var wallet = [];
+
+    function nano(template, data) {
+        return template.replace(/\{([\w\.]*)\}/g, function(str, key) {
+            var keys = key.split("."), v = data[keys.shift()];
+            for (var i = 0, l = keys.length; i < l; i++) v = v[keys[i]];
+            return (typeof v !== "undefined" && v !== null) ? v : "";
+        });
+    }
+
+    function addOrRefreshServer(server)
+    {
+        var $servers = document.getElementById('servers');
+        var isNew = false;
+        if(server.id === undefined) {
+            server.id = 'A' + Math.random().toString(36).substr(2, 9);
+            isNew = true;
+        }
+
+        var html = nano(document.getElementById('tpl').innerHTML, server);
+        if(isNew) {
+            $servers.insertAdjacentHTML('beforeend', html);
+        } else {
+            var newEl = document.createElement('table');
+            newEl.innerHTML = html;
+            $servers.replaceChild(newEl.querySelector('tr'), $servers.querySelector(`#${server.id}`));
+        }
+    }
+
+    function refreshStats()
+    {
+        document.getElementById('hashrate_all').innerHTML = Object.keys(servers).reduce(function (previous, key) {
+            return previous + servers[key].hashrate;
+        }, 0);
+        var allOnline = Object.keys(servers).reduce(function (previous, key) {
+            return previous + (servers[key].state === 'success' ? 1 : 0);
+        }, 0);
+
+        document.getElementById('miners_all').innerHTML =
+            `${allOnline}/${Object.keys(servers).length}`;
+        document.getElementById('pasc_all').innerHTML =
+            `${wallet.balance}`;
+        document.getElementById('blocks_all').innerHTML =
+            `${Math.floor(wallet.number_of_accounts/4)}`;
+    }
+
+    var connection = new ReconnectingWebSocket('ws://127.0.0.1:8081');
+    connection.onclose = function (event) {
+        document.getElementById('socket_status').innerHTML = 'disconnected';
+        $('#myModal').modal();
+    };
+    connection.onmessage = function (event) {
+        var parsed = JSON.parse(event.data);
+        switch(parsed.event) {
+            case 'servers.init':
+                servers = {};
+                document.getElementById('servers').innerHTML = '';
+
+                console.log(parsed.data);
+                parsed.data.forEach(function(server) {
+                    servers[server.config.ip] = server;
+                    addOrRefreshServer(server);
+                });
+                refreshStats();
+                break;
+            case 'servers.refresh':
+                var server = parsed.data;
+                if(!servers[server.config.ip]) {
+                    servers[server.config.ip] = server;
+                } else {
+                    var id = servers[server.config.ip].id;
+                    servers[server.config.ip] = server;
+                    servers[server.config.ip].id = id;
+                }
+                addOrRefreshServer(server);
+                refreshStats();
+                /*if(servers)
+                parsed.data.forEach(function(server) {
+                    servers[server.config.ip] = server;
+                    var html = nano(document.getElementById('tpl').innerHTML, server);
+                    document.getElementById('servers').insertAdjacentHTML( 'beforeend', html);
+                });*/
+                break;
+            case 'wallet.init':
+                wallet = parsed.data;
+                console.log(wallet);
+                break;
+            case 'wallet.refresh':
+                wallet = parsed.data;
+                console.log(wallet);
+                refreshStats();
+                /*if(servers)
+                parsed.data.forEach(function(server) {
+                    servers[server.config.ip] = server;
+                    var html = nano(document.getElementById('tpl').innerHTML, server);
+                    document.getElementById('servers').insertAdjacentHTML( 'beforeend', html);
+                });*/
+                break;
+        }
+
+    };
+
+    connection.onopen = function (event) {
+        document.getElementById('socket_status').innerHTML = 'CONNECTED';
+        $('#myModal').modal('hide');
+    };
+
+
+</script>
+<script type="text/template" id="tpl">
+    <tr id="{id}">
+        <td class="ip">{config.ip}:{config.port}</td>
+        <td><span class="hashrate">{hashrate}</span> H/s</td>
+        <td class="state">{state}<br />{error_message}</td>
+    </tr>
+</script>
+</body>
+</html>
+
