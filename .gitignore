@@ -1,2 +1,3 @@
 config.ini
-
+node_modules
+vendor
