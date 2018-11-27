@@ -11,6 +11,7 @@
   "dependencies": {
     "eventemitter2": "^5.0.1",
     "express": "^4.16.4",
+    "network": "^0.4.1",
     "node-tcp-proxy": "0.0.13",
     "pubsub-js": "^1.7.0",
     "tcp-proxy.js": "^1.2.0",

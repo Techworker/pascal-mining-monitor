@@ -103,7 +103,7 @@ module.exports = (function()
          */
         startWebServer(config)
         {
-            if(config === null) {
+            if(config === null || config.enabled === false) {
                 return;
             }
 
